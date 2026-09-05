@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useRef, type RefObject } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { PREFERS_REDUCED_MOTION } from './motion';
 
 gsap.registerPlugin(ScrollTrigger);
 
-const REDUCED_MOTION =
-  typeof window !== 'undefined' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-const SCROLL_DISTANCE = 38;
+const SCROLL_DISTANCE = 42;
 
 type RevealKind = 'up' | 'down' | 'left' | 'right' | 'fade' | 'scale';
 
@@ -18,7 +15,7 @@ const REVEAL_FROM: Record<RevealKind, gsap.TweenVars> = {
   left: { x: SCROLL_DISTANCE, opacity: 0 },
   right: { x: -SCROLL_DISTANCE, opacity: 0 },
   fade: { opacity: 0 },
-  scale: { scale: 0.92, opacity: 0 },
+  scale: { scale: 0.94, y: 18, opacity: 0 },
 };
 
 const REVEAL_TO: Record<RevealKind, gsap.TweenVars> = {
@@ -27,17 +24,30 @@ const REVEAL_TO: Record<RevealKind, gsap.TweenVars> = {
   left: { x: 0, opacity: 1 },
   right: { x: 0, opacity: 1 },
   fade: { opacity: 1 },
-  scale: { scale: 1, opacity: 1 },
+  scale: { scale: 1, y: 0, opacity: 1 },
 };
 
+function parseFloatAttr(element: HTMLElement, key: string): number | undefined {
+  const raw = element.dataset[key];
+  if (raw === undefined) return undefined;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : undefined;
+}
+
 /**
- * Sets up GSAP ScrollTrigger reveal + parallax animations for everything
- * inside the returned ref's subtree. Pass `dep` to (re)initialize once
- * async content is ready (e.g. `data?.id`).
+ * Scroll-triggered motion system. Everything inside the returned ref's
+ * subtree is decorated with:
  *
- * Usage:
- *   const ref = useScrollReveal<HTMLDivElement>(recipe?.id);
- *   <div ref={ref}> ... sections marked with data-reveal / data-reveal-stagger ...
+ *   · [data-reveal="up|down|left|right|fade|scale"]       entrance (optionally
+ *     delayed with data-reveal-delay="ms", or custom start via data-reveal-start)
+ *   · [data-reveal-stagger]                               staggers its children
+ *     (data-stagger-delay="ms", data-stagger-stagger="s")
+ *   · [data-hero-animate]                                 play on load (hero intro)
+ *   · [data-speed]                                        scrubbed parallax drift
+ *   · [data-count]                                        animated number count-up
+ *     (data-count-suffix, data-count-decimals)
+ *
+ * Pass `dep` to (re)initialize once async content is ready (e.g. data?.id).
  */
 export function useScrollReveal<T extends HTMLElement = HTMLDivElement>(
   dep?: unknown,
@@ -47,73 +57,93 @@ export function useScrollReveal<T extends HTMLElement = HTMLDivElement>(
 
   useEffect(() => {
     const root = ref.current;
-    if (!root || REDUCED_MOTION) return;
+    if (!root) return;
+    if (PREFERS_REDUCED_MOTION) return;
 
     const ctx = gsap.context(() => {
+      /* Hero entrance — plays once on load */
+      gsap.utils.toArray<HTMLElement>('[data-hero-animate]', root).forEach((element) => {
+        gsap.fromTo(
+          element,
+          { y: 34, opacity: 0 },
+          {
+            y: 0,
+            opacity: 1,
+            duration: 1.1,
+            delay: Number(element.dataset.heroDelay ?? 0),
+            ease: 'power3.out',
+          },
+        );
+      });
+
       /* Staggered batches — direct children of [data-reveal-stagger] */
       gsap.utils.toArray<HTMLElement>('[data-reveal-stagger]', root).forEach((batch) => {
         const children = gsap.utils.toArray<HTMLElement>(batch.children);
         if (!children.length) return;
         gsap.fromTo(
           children,
-          { y: SCROLL_DISTANCE * 0.7, opacity: 0 },
+          { y: SCROLL_DISTANCE * 0.62, opacity: 0 },
           {
             y: 0,
             opacity: 1,
-            duration: 0.9,
+            duration: 0.95,
+            delay: parseFloatAttr(batch, 'staggerDelay') ?? 0,
+            stagger: parseFloatAttr(batch, 'staggerStagger') ?? 0.09,
             ease: 'power3.out',
-            stagger: 0.1,
-            scrollTrigger: { trigger: batch, start: 'top 84%', once: true },
+            scrollTrigger: { trigger: batch, start: 'top 85%', once: true },
           },
         );
       });
 
-      /* Single elements marked with data-reveal */
-      gsap.utils.toArray<HTMLElement>('[data-reveal]', root).forEach((el) => {
-        const kind = (el.dataset.reveal as RevealKind) || 'up';
+      /* Single reveals */
+      gsap.utils.toArray<HTMLElement>('[data-reveal]', root).forEach((element) => {
+        const kind = (element.dataset.reveal as RevealKind) || 'up';
         const from = REVEAL_FROM[kind] ?? REVEAL_FROM.up;
         const to = REVEAL_TO[kind] ?? REVEAL_TO.up;
-        gsap.fromTo(el, from, {
+        gsap.fromTo(element, from, {
           ...to,
-          duration: 1,
-          ease: 'power3.out',
-          scrollTrigger: { trigger: el, start: 'top 86%', once: true },
+          duration: 1.05,
+          delay: (parseFloatAttr(element, 'revealDelay') ?? 0) / 1000,
+          ease: 'expo.out',
+          scrollTrigger: {
+            trigger: element,
+            start: element.dataset.revealStart ?? 'top 87%',
+            once: true,
+          },
         });
       });
 
-      /* Hero parallax (scrubbed on scroll) */
-      const hero = root.querySelector<HTMLElement>('.forest-hero');
-      const heroImage = root.querySelector<HTMLElement>('.forest-hero-image');
-      const heroContent = root.querySelector<HTMLElement>('.forest-hero-content');
-      if (hero) {
-        const scrub = { trigger: hero, start: 'top top', end: 'bottom top', scrub: true };
-        if (heroImage) {
-          gsap.fromTo(heroImage, { yPercent: -6 }, { yPercent: 7, ease: 'none', scrollTrigger: scrub });
-        }
-        if (heroContent) {
-          gsap.to(heroContent, {
-            yPercent: 14,
-            opacity: 0.2,
-            ease: 'none',
-            scrollTrigger: scrub,
-          });
-        }
-      }
-
-      /* Feature grid cards — soft rise on entry (pairs with .motion-rise fallback) */
-      gsap.utils.toArray<HTMLElement>('.featured-grid > a, .recipe-grid > a', root).forEach((card) => {
+      /* Scrub-produced parallax drift — data-speed="0.15" etc. */
+      gsap.utils.toArray<HTMLElement>('[data-speed]', root).forEach((element) => {
+        const amount = parseFloatAttr(element, 'speed') ?? 0;
+        if (!amount) return;
         gsap.fromTo(
-          card,
-          { y: 26, opacity: 0 },
+          element,
+          { yPercent: -amount * 7 },
           {
-            y: 0,
-            opacity: 1,
-            duration: 0.8,
-            ease: 'power3.out',
-            stagger: 0.08,
-            scrollTrigger: { trigger: card.parentElement, start: 'top 82%', once: true },
+            yPercent: amount * 7,
+            ease: 'none',
+            scrollTrigger: { trigger: element, start: 'top bottom', end: 'bottom top', scrub: true },
           },
         );
+      });
+
+      /* Animated counters */
+      gsap.utils.toArray<HTMLElement>('[data-count]', root).forEach((element) => {
+        const target = Number(element.dataset.count);
+        const decimals = parseFloatAttr(element, 'countDecimals') ?? 0;
+        const suffix = element.dataset.countSuffix ?? '';
+        if (!Number.isFinite(target)) return;
+        const counter = { value: 0 };
+        gsap.to(counter, {
+          value: target,
+          duration: 1.8,
+          ease: 'expo.out',
+          scrollTrigger: { trigger: element, start: 'top 88%', once: true },
+          onUpdate: () => {
+            element.textContent = `${counter.value.toFixed(decimals)}${suffix}`;
+          },
+        });
       });
     }, root);
 
@@ -123,7 +153,16 @@ export function useScrollReveal<T extends HTMLElement = HTMLDivElement>(
   return ref;
 }
 
-/** Kills all active ScrollTrigger instances (useful before route teardown if ever needed). */
+/** Kill every active ScrollTrigger (used on route teardown). */
 export function killScrollTriggers() {
   ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
+}
+
+/** Brief fade-in for content that mounts after data arrives. */
+export function fadeInUp(element: HTMLElement, delay = 0) {
+  return gsap.fromTo(
+    element,
+    { opacity: 0, y: 18 },
+    { opacity: 1, y: 0, duration: 0.7, delay, ease: 'power3.out' },
+  );
 }

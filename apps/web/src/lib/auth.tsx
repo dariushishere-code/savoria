@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { api, ApiError } from './api';
+import { api, ApiError, onAccessTokenChange } from './api';
 
 export type AuthUser = {
   id: string;
@@ -25,12 +25,12 @@ type AuthState = {
   isLoading: boolean;
   isAuthenticated: boolean;
   isAdmin: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<AuthUser>;
   register: (data: {
     email: string;
     password: string;
     name: string;
-  }) => Promise<void>;
+  }) => Promise<AuthUser>;
   logout: () => Promise<void>;
 };
 
@@ -40,6 +40,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  /* Keep the app in sync with silent token refreshes performed by the
+     API client (and clear the session if a refresh irrevocably fails). */
+  useEffect(() => {
+    const unsubscribe = onAccessTokenChange((token) => {
+      if (token) {
+        setAccessToken(token);
+      } else {
+        setAccessToken(null);
+        setUser(null);
+      }
+    });
+    return unsubscribe;
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -59,19 +73,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refresh().finally(() => setIsLoading(false));
   }, [refresh]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const data = await api.post<{ user: AuthUser; accessToken: string }>(
-      '/api/auth/login',
-      { email, password },
-    );
-    setAccessToken(data.accessToken);
-    setUser(data.user);
-  }, []);
+  const login = useCallback(
+    async (email: string, password: string): Promise<AuthUser> => {
+      const data = await api.post<{ user: AuthUser; accessToken: string }>(
+        '/api/auth/login',
+        { email, password },
+      );
+      setAccessToken(data.accessToken);
+      setUser(data.user);
+      return data.user;
+    },
+    [],
+  );
 
   const register = useCallback(
-    async (input: { email: string; password: string; name: string }) => {
+    async (input: { email: string; password: string; name: string }): Promise<AuthUser> => {
       await api.post('/api/auth/register', input);
-      await login(input.email, input.password);
+      return login(input.email, input.password);
     },
     [login],
   );

@@ -8,7 +8,7 @@ export async function adminRoutes(app: FastifyInstance) {
   app.addHook("preHandler", requireAdmin);
 
   app.get("/dashboard", async (_req, reply) => {
-    const [users, published, drafts, views, favorites, aiConversations, aiMessages] = await Promise.all([
+    const [users, published, drafts, views, favorites, aiConversations, aiMessages, comments] = await Promise.all([
       prisma.user.count(),
       prisma.recipe.count({ where: { status: RecipeStatus.PUBLISHED } }),
       prisma.recipe.count({ where: { status: RecipeStatus.DRAFT } }),
@@ -16,6 +16,7 @@ export async function adminRoutes(app: FastifyInstance) {
       prisma.favorite.count(),
       prisma.aIConversation.count(),
       prisma.aIMessage.count(),
+      prisma.comment.count(),
     ]);
     const popularRecipes = await prisma.recipe.findMany({
       where: { status: RecipeStatus.PUBLISHED }, orderBy: { viewCount: "desc" }, take: 10,
@@ -25,7 +26,7 @@ export async function adminRoutes(app: FastifyInstance) {
       totals: {
         users, recipes: published + drafts, publishedRecipes: published, draftRecipes: drafts,
         views: views._sum.viewCount ?? 0, activeUsers: users, newUsersToday: 0, newUsersWeek: 0,
-        favorites, aiConversations, aiMessages, pendingReports: 0, pendingRecipes: 0,
+        favorites, aiConversations, aiMessages, comments, pendingReports: 0, pendingRecipes: 0,
       },
       popularRecipes,
       charts: { userGrowth: [], recipeGrowth: [] },

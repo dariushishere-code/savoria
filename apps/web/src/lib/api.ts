@@ -5,16 +5,50 @@ export class ApiError extends Error {
     public statusCode: number,
     message: string,
     public code?: string,
+    public errors?: Record<string, string[]>,
   ) {
     super(message);
   }
 }
 
-async function request<T>(
-  path: string,
-  options: { method?: string; body?: unknown; token?: string | null } = {},
-): Promise<T> {
-  const { method = 'GET', body, token } = options;
+/* ── Silent session refresh ─────────────────────────────────────
+   When an authenticated request comes back 401, we refresh the
+   access token once (cookie-backed) and transparently retry. This
+   keeps long browsing sessions feeling seamless. */
+
+let tokenListeners: Array<(token: string | null) => void> = [];
+export function onAccessTokenChange(listener: (token: string | null) => void) {
+  tokenListeners.push(listener);
+  return () => {
+    tokenListeners = tokenListeners.filter((item) => item !== listener);
+  };
+}
+
+let refreshInFlight: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    if (!res.ok) return null;
+    const data = (await res.json().catch(() => ({}))) as { data?: { accessToken?: string } };
+    return data?.data?.accessToken ?? null;
+  } catch {
+    return null;
+  }
+}
+
+type RequestOptions = {
+  method?: string;
+  body?: unknown;
+  token?: string | null;
+  isRetry?: boolean;
+};
+
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { method = 'GET', body, token, isRetry = false } = options;
   const res = await fetch(`${API_BASE}${path}`, {
     method,
     credentials: 'include',
@@ -25,8 +59,21 @@ async function request<T>(
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
+
+  if (res.status === 401 && token && !isRetry && !path.startsWith('/api/auth')) {
+    refreshInFlight ??= refreshAccessToken();
+    const freshToken = await refreshInFlight;
+    refreshInFlight = null;
+    if (freshToken) {
+      tokenListeners.forEach((listener) => listener(freshToken));
+      return request<T>(path, { ...options, token: freshToken, isRetry: true });
+    }
+    tokenListeners.forEach((listener) => listener(null));
+    throw new ApiError(401, data.message ?? 'Your session has expired. Please sign in again.', data.code);
+  }
+
   if (!res.ok) {
-    throw new ApiError(res.status, data.message ?? 'Request failed', data.code);
+    throw new ApiError(res.status, data.message ?? 'Request failed', data.code, data.errors);
   }
   if (data && typeof data === 'object' && 'success' in data && 'data' in data) {
     return data.data as T;
@@ -234,7 +281,7 @@ export function addComment(recipeId: string, content: string, token: string) {
 /* ── AI ────────────────────────────────────────────────────────── */
 
 export function aiChat(message: string, token?: string | null, conversationId?: string) {
-  return api.post<{ reply: string }>(
+  return api.post<{ reply: string; conversationId?: string }>(
     '/api/ai/chat',
     { message, conversationId },
     token,
