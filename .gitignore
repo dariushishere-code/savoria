@@ -1,10 +1,7 @@
 # Dependencies
 node_modules
 .pnpm-store
-.env.example
-.env.production.example
-.env.development.example
-.env
+
 # Builds
 dist
 build
@@ -15,11 +12,13 @@ android/app/build
 ios/build
 *.tsbuildinfo
 
-# Env
+# Env — never commit real secrets. Copy ".env.example"/".env.production.example"
+# to ".env"/".env.production" and fill in real values locally.
 .env
-.env.local
-.env.*.local
+.env.*
 !.env.example
+!.env.development.example
+!.env.production.example
 
 # Logs & caches
 *.log
@@ -64,3 +63,19 @@ packages/database/prisma/*.db-journal
 *.swo
 .vercel
 .railway
+
+# Secrets, keys & registry auth (never commit)
+*.pem
+*.pfx
+*.key
+*.crt
+*.der
+*.jks
+*.p8
+*.p12
+*.ovpn
+service-account*.json
+credentials*.json
+.npmrc
+.yarnrc
+.yarnrc.yml
