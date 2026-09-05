@@ -1,0 +1,62 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Builds
+dist
+build
+.next
+.turbo
+.expo
+android/app/build
+ios/build
+*.tsbuildinfo
+
+# Env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs & caches
+*.log
+npm-debug.log*
+.DS_Store
+coverage
+.nyc_output
+.cache
+tmp
+temp
+uploads
+*.pid
+
+# IDE
+.idea
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Local tooling / agent state
+.claude
+.claude/
+
+# Stale verification logs
+*-output.txt
+
+# Mobile
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+*.orig.*
+web-build
+
+# Prisma
+packages/database/prisma/*.db
+packages/database/prisma/*.db-journal
+
+# Misc
+*.swp
+*.swo
+.vercel
+.railway

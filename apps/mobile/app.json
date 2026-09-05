@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "Savoria",
+    "slug": "savoria",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": { "supportsTablet": true, "bundleIdentifier": "app.savoria.mobile" },
+    "android": {
+      "package": "app.savoria.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFBF5"
+      }
+    }
+  }
+}
