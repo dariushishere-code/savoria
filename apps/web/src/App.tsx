@@ -3,8 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchRecipes, fetchRecipe, fetchCuisines, formatTime, type RecipeListItem, addComment, addFavorite, fetchComments, rateRecipe } from './lib/api';
 import { useAuth } from './lib/auth';
 import { useParams } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowRight, Check, ChefHat, Clock3, Eye, EyeOff, Leaf, LockKeyhole, Mail, Menu, Search, ShieldCheck, Sparkles, Star, UserRound, Utensils, X } from 'lucide-react';
+import { CookMode } from './components/CookMode';
+import { ProfilePage } from './components/ProfilePage';
+import { useScrollReveal } from './lib/scroll-animations';
 
 const fallbackImages = [
   'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=900&q=85',
@@ -51,46 +54,57 @@ function RecipeCard({ recipe, index = 0 }: { recipe: RecipeListItem; index?: num
 function Shell({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isAdmin, user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
   const location = useLocation();
-  const isHome = location.pathname === '/';
+  const isRecipes = location.pathname.startsWith('/recipes');
+  const isAI = location.pathname.startsWith('/ai');
+  const closeMenu = () => setMenuOpen(false);
   return (
     <div className="flex min-h-screen flex-col">
-      <header className={`sticky top-0 z-20 border-b backdrop-blur-xl ${isHome ? 'home-header border-white/10 bg-[#18251f]/75 text-white' : 'border-charcoal-100/80 bg-cream-50/90'}`}>
+      <header className={`glassy-header sticky top-0 z-20 border-b border-white/10${scrolled ? ' is-scrolled' : ''}`}>
         <div className="container-app flex min-h-16 items-center justify-between gap-4">
-          <Link to="/" className={`font-display text-2xl tracking-tight ${isHome ? 'text-white' : 'text-charcoal-900'}`} onClick={() => setMenuOpen(false)}>
-            Savoria<span className={isHome ? 'text-primary-300' : 'text-primary-600'}>.</span>
+          <Link to="/" className="font-display text-2xl tracking-tight text-white" onClick={closeMenu}>
+            Savoria<span className="text-primary-300">.</span>
           </Link>
-          <button type="button" className="btn-ghost md:hidden" aria-label="Toggle navigation" onClick={() => setMenuOpen(!menuOpen)}>
+          <button type="button" className="btn-ghost md:hidden" aria-label="Toggle navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
             {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
-          <nav className={`${menuOpen ? 'flex' : 'hidden'} ${isHome ? 'home-menu' : ''} absolute left-0 right-0 top-full flex-col gap-2 border-b border-charcoal-100 bg-cream-50 p-4 shadow-lg md:static md:flex md:flex-row md:items-center md:border-0 md:bg-transparent md:p-0 md:shadow-none`}>
-            <Link to="/recipes" className={`nav-link px-3 py-2 ${isHome ? 'home-nav-link' : ''}`} onClick={() => setMenuOpen(false)}>
+          <nav className={`${menuOpen ? 'flex' : 'hidden'} glassy-menu absolute left-0 right-0 top-full flex-col gap-1 p-4 shadow-lg md:static md:flex md:flex-row md:items-center md:border-0 md:bg-transparent md:p-0 md:shadow-none`}>
+            <Link to="/recipes" className={`nav-link px-3 py-2 ${isRecipes ? 'nav-link-active' : ''}`} onClick={closeMenu}>
               Recipes
             </Link>
-            <Link to="/recipes#explore" className={`nav-link px-3 py-2 ${isHome ? 'home-nav-link' : ''}`} onClick={() => setMenuOpen(false)}>
-              Explore
-            </Link>
-            <Link to="/ai" className={`nav-link px-3 py-2 ${isHome ? 'home-nav-link' : ''}`} onClick={() => setMenuOpen(false)}>
+            <Link to="/ai" className={`nav-link px-3 py-2 ${isAI ? 'nav-link-active' : ''}`} onClick={closeMenu}>
               AI Chef
             </Link>
-            <a href="#about" className={`nav-link px-3 py-2 ${isHome ? 'home-nav-link' : ''}`} onClick={() => setMenuOpen(false)}>About</a>
-            <a href="#contact" className={`nav-link px-3 py-2 ${isHome ? 'home-nav-link' : ''}`} onClick={() => setMenuOpen(false)}>Contact</a>
+            <Link to="/#about" className="nav-link px-3 py-2" onClick={closeMenu}>About</Link>
+            <Link to="/#contact" className="nav-link px-3 py-2" onClick={closeMenu}>Contact</Link>
             {isAdmin && (
-              <Link to="/admin" className="nav-link px-3 py-2" onClick={() => setMenuOpen(false)}>
+              <Link to="/admin" className="nav-link px-3 py-2" onClick={closeMenu}>
                 Admin
               </Link>
             )}
+            <div className="my-2 h-px bg-white/10 md:hidden" />
             {isAuthenticated ? (
               <>
-                <span className={`px-3 text-sm ${isHome ? 'text-white/70' : 'text-charcoal-500'}`}>{user?.name}</span>
-                <button type="button" className="btn-outline" onClick={() => { logout(); setMenuOpen(false); }}>
+                <Link to="/profile" className={`nav-link flex items-center gap-2 px-3 py-2 ${location.pathname.startsWith('/profile') ? 'nav-link-active' : ''}`} onClick={closeMenu} title="Go to your profile">
+                  <span className="nav-avatar"><UserRound className="h-3.5 w-3.5" /></span>
+                  <span className="max-w-[10rem] truncate">{user?.name || 'My profile'}</span>
+                </Link>
+                <button type="button" className="btn-outline mx-2" onClick={() => { logout(); closeMenu(); }}>
                   Log out
                 </button>
               </>
             ) : (
-              <Link to="/login" className="btn-primary md:ml-2" onClick={() => setMenuOpen(false)}>
-                Sign in
-              </Link>
+              <>
+                <Link to="/login" className="nav-link px-3 py-2" onClick={closeMenu}>Sign in</Link>
+                <Link to="/register" className="btn-primary md:ml-2" onClick={closeMenu}>Create account</Link>
+              </>
             )}
           </nav>
         </div>
@@ -112,8 +126,9 @@ function HomePage() {
   });
   const cuisines = useQuery({ queryKey: ['cuisines'], queryFn: fetchCuisines });
   const [contactState, setContactState] = useState<'idle' | 'ready'>('idle');
+  const scope = useScrollReveal<HTMLDivElement>(cuisines.data?.length ?? 0);
   return (
-    <div className="landing-page">
+    <div ref={scope} className="landing-page">
       <section className="forest-hero">
         <div className="forest-hero-image" />
         <div className="forest-hero-mist" />
@@ -126,7 +141,7 @@ function HomePage() {
         </div>
         <div className="hero-scroll"><span>Scroll to explore</span><i /></div>
       </section>
-      <section className="landing-section featured-section">
+      <section className="landing-section featured-section" data-reveal="fade">
         <div className="container-app">
         <div className="flex items-end justify-between gap-4">
           <div><p className="eyebrow">From the kitchen</p><h2 className="section-heading mt-2">Discover your next favorite dish.</h2></div>
@@ -139,11 +154,11 @@ function HomePage() {
         </div>
         </div>
       </section>
-      <section id="explore" className="landing-section cuisine-section"><div className="container-app"><div className="section-intro"><div><p className="eyebrow">A world on your plate</p><h2 className="section-heading mt-2">Travel by taste.</h2></div><p>From fragrant Thai kitchens to sunlit Mediterranean tables, follow your appetite.</p></div><div className="cuisine-strip">{cuisines.isLoading ? [1, 2, 3, 4].map((item) => <div key={item} className="cuisine-skeleton" />) : cuisines.data?.slice(0, 8).map((cuisine, index) => <Link key={cuisine.id} to={`/recipes?cuisine=${cuisine.slug}`} className={`cuisine-tile cuisine-tile-${index % 4}`}><span>{String(index + 1).padStart(2, '0')}</span><strong>{cuisine.name}</strong><small>{cuisine.region || 'Global kitchen'}</small></Link>)}</div></div></section>
-      <section className="ai-feature-section"><div className="container-app ai-feature-inner"><div className="ai-feature-copy"><p className="landing-kicker dark"><Sparkles className="h-4 w-4" /> Your kitchen, understood</p><h2>Your AI chef,<br /><em>always in the kitchen.</em></h2><p>Ask what to make with what you have, find a smart substitute, or learn the story behind a dish. Savoria answers from the recipes in its collection.</p><Link to="/ai" className="hero-button dark-button">Meet your AI chef <ArrowRight className="h-4 w-4" /></Link></div><div className="ai-orbit"><div className="ai-orbit-ring ring-one" /><div className="ai-orbit-ring ring-two" /><div className="ai-orbit-core"><ChefHat className="h-10 w-10" /><span>Ask<br />anything</span></div><span className="ai-float float-one">What can I cook tonight?</span><span className="ai-float float-two">Replace eggs in baking</span></div></div></section>
-      <section className="landing-section planner-section"><div className="container-app planner-grid"><div className="planner-image"><img src="https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1100&q=85" alt="Colorful seasonal salad prepared in a home kitchen" loading="lazy" /></div><div className="planner-copy"><p className="eyebrow">Make space for good food</p><h2 className="section-heading mt-3">A week that<br /><em>tastes better.</em></h2><p>Turn inspiration into a rhythm. Gather breakfast, lunch, dinner, and the small snacks that make a week feel generous.</p><div className="meal-list"><span><b>01</b> Breakfast</span><span><b>02</b> Lunch</span><span><b>03</b> Dinner</span><span><b>04</b> Something sweet</span></div><Link to="/recipes" className="text-link">Start planning from recipes <ArrowRight className="h-4 w-4" /></Link></div></div></section>
-      <section id="about" className="about-section"><div className="container-app about-grid"><div><p className="eyebrow">About Savoria</p><h2>Cooking should feel inspiring,<br /><em>not complicated.</em></h2></div><div><p className="about-lead">Savoria brings global recipes, thoughtful guidance, and a little more confidence to the everyday kitchen.</p><p className="about-body">Discover dishes rooted in real places. Save the ones you love. Ask an AI chef when the pantry feels puzzling. Build a week around food that makes you want to sit down and stay awhile.</p><div className="about-stats"><span><b>07</b><small>world cuisines</small></span><span><b>∞</b><small>ways to make it yours</small></span></div></div></div></section>
-      <section id="contact" className="contact-section"><div className="container-app contact-grid"><div><p className="eyebrow">Say hello</p><h2 className="section-heading mt-3">Bring us<br /><em>to the table.</em></h2><p className="mt-5 max-w-sm text-white/60">Have a recipe story, a question, or an idea for the kitchen? We would love to hear from you.</p><p className="mt-8 text-sm text-white/80">hello@savoria.app</p></div><form className="contact-form" action="mailto:hello@savoria.app" method="post" encType="text/plain" onSubmit={() => setContactState('ready')}><div className="contact-fields"><label>Name<input name="name" required placeholder="Your name" /></label><label>Email<input name="email" type="email" required placeholder="you@example.com" /></label></div><label>Subject<input name="subject" required placeholder="What is on your mind?" /></label><label>Message<textarea name="message" required rows={4} placeholder="Tell us a little more..." /></label><button type="submit" className="hero-button">Send message <ArrowRight className="h-4 w-4" /></button>{contactState === 'ready' && <p className="text-xs text-white/60">Your email client will open with the message ready to send.</p>}</form></div></section>
+      <section id="explore" className="landing-section cuisine-section"><div className="container-app"><div className="section-intro" data-reveal="fade"><div><p className="eyebrow">A world on your plate</p><h2 className="section-heading mt-2">Travel by taste.</h2></div><p>From fragrant Thai kitchens to sunlit Mediterranean tables, follow your appetite.</p></div><div className="cuisine-strip" data-reveal-stagger>{cuisines.isLoading ? [1, 2, 3, 4].map((item) => <div key={item} className="cuisine-skeleton" />) : cuisines.data?.slice(0, 8).map((cuisine, index) => <Link key={cuisine.id} to={`/recipes?cuisine=${cuisine.slug}`} className={`cuisine-tile cuisine-tile-${index % 4}`}><span>{String(index + 1).padStart(2, '0')}</span><strong>{cuisine.name}</strong><small>{cuisine.region || 'Global kitchen'}</small></Link>)}</div></div></section>
+      <section className="ai-feature-section"><div className="container-app ai-feature-inner"><div className="ai-feature-copy" data-reveal="left"><p className="landing-kicker dark"><Sparkles className="h-4 w-4" /> Your kitchen, understood</p><h2>Your AI chef,<br /><em>always in the kitchen.</em></h2><p>Ask what to make with what you have, find a smart substitute, or learn the story behind a dish. Savoria answers from the recipes in its collection.</p><Link to="/ai" className="hero-button dark-button">Meet your AI chef <ArrowRight className="h-4 w-4" /></Link></div><div className="ai-orbit" data-reveal="right"><div className="ai-orbit-ring ring-one" /><div className="ai-orbit-ring ring-two" /><div className="ai-orbit-core"><ChefHat className="h-10 w-10" /><span>Ask<br />anything</span></div><span className="ai-float float-one">What can I cook tonight?</span><span className="ai-float float-two">Replace eggs in baking</span></div></div></section>
+      <section className="landing-section planner-section"><div className="container-app planner-grid"><div className="planner-image" data-reveal="left"><img src="https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1100&q=85" alt="Colorful seasonal salad prepared in a home kitchen" loading="lazy" /></div><div className="planner-copy" data-reveal="right"><p className="eyebrow">Make space for good food</p><h2 className="section-heading mt-3">A week that<br /><em>tastes better.</em></h2><p>Turn inspiration into a rhythm. Gather breakfast, lunch, dinner, and the small snacks that make a week feel generous.</p><div className="meal-list"><span><b>01</b> Breakfast</span><span><b>02</b> Lunch</span><span><b>03</b> Dinner</span><span><b>04</b> Something sweet</span></div><Link to="/recipes" className="text-link">Start planning from recipes <ArrowRight className="h-4 w-4" /></Link></div></div></section>
+      <section id="about" className="about-section"><div className="container-app about-grid" data-reveal-stagger><div><p className="eyebrow">About Savoria</p><h2>Cooking should feel inspiring,<br /><em>not complicated.</em></h2></div><div><p className="about-lead">Savoria brings global recipes, thoughtful guidance, and a little more confidence to the everyday kitchen.</p><p className="about-body">Discover dishes rooted in real places. Save the ones you love. Ask an AI chef when the pantry feels puzzling. Build a week around food that makes you want to sit down and stay awhile.</p><div className="about-stats"><span><b>07</b><small>world cuisines</small></span><span><b>∞</b><small>ways to make it yours</small></span></div></div></div></section>
+      <section id="contact" className="contact-section"><div className="container-app contact-grid" data-reveal-stagger><div><p className="eyebrow">Say hello</p><h2 className="section-heading mt-3">Bring us<br /><em>to the table.</em></h2><p className="mt-5 max-w-sm text-white/60">Have a recipe story, a question, or an idea for the kitchen? We would love to hear from you.</p><p className="mt-8 text-sm text-white/80">hello@savoria.app</p></div><form className="contact-form" action="mailto:hello@savoria.app" method="post" encType="text/plain" onSubmit={() => setContactState('ready')}><div className="contact-fields"><label>Name<input name="name" required placeholder="Your name" /></label><label>Email<input name="email" type="email" required placeholder="you@example.com" /></label></div><label>Subject<input name="subject" required placeholder="What is on your mind?" /></label><label>Message<textarea name="message" required rows={4} placeholder="Tell us a little more..." /></label><button type="submit" className="hero-button">Send message <ArrowRight className="h-4 w-4" /></button>{contactState === 'ready' && <p className="text-xs text-white/60">Your email client will open with the message ready to send.</p>}</form></div></section>
     </div>
   );
 }
@@ -156,7 +171,7 @@ function RecipesPage() {
     queryFn: () => fetchRecipes({ q: q || undefined, pageSize: 12 }),
   });
   return (
-    <div className="container-app py-10">
+    <div className="container-app py-10" data-reveal="fade">
       <p className="eyebrow">The Savoria collection</p>
       <h1 className="mt-2 font-display text-5xl">Find your next favorite.</h1>
       <form
@@ -193,25 +208,27 @@ function RecipeDetailPage() {
   const { accessToken, isAuthenticated } = useAuth();
   const [comment, setComment] = useState('');
   const [feedback, setFeedback] = useState('');
+  const [cookOpen, setCookOpen] = useState(false);
   const { data, isLoading, isError } = useQuery({
     queryKey: ['recipe', slug],
     queryFn: () => fetchRecipe(slug!),
     enabled: !!slug,
   });
   const comments = useQuery({ queryKey: ['comments', data?.id], queryFn: () => fetchComments(data!.id), enabled: !!data?.id });
+  const scope = useScrollReveal<HTMLElement>(data?.id);
   if (isLoading) return <div className="container-app py-16">Loading…</div>;
   if (isError || !data) return <div className="container-app py-16">Not found</div>;
   const r = data;
   return (
-    <article className="container-app py-10">
+    <article ref={scope} className="container-app py-10">
       <Link to="/recipes" className="text-sm font-semibold text-primary-700">← Back to recipes</Link>
       <div className="mt-6 grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
-        <div><p className="eyebrow">{r.cuisine?.name || 'Savoria kitchen'}</p><h1 className="mt-3 font-display text-5xl leading-none sm:text-6xl">{r.title}</h1><p className="mt-5 max-w-2xl text-lg leading-8 text-charcoal-600">{r.description}</p></div>
-        <div className="aspect-[4/3] overflow-hidden rounded-2xl bg-cream-200"><RecipeImage recipe={r} /></div>
+        <div data-reveal="up"><p className="eyebrow">{r.cuisine?.name || 'Savoria kitchen'}</p><h1 className="mt-3 font-display text-5xl leading-none sm:text-6xl">{r.title}</h1><p className="mt-5 max-w-2xl text-lg leading-8 text-charcoal-600">{r.description}</p></div>
+        <div data-reveal="scale" className="aspect-[4/3] overflow-hidden rounded-2xl bg-cream-200"><RecipeImage recipe={r} /></div>
       </div>
-      <div className="mt-8 flex flex-wrap items-center gap-3 text-sm text-charcoal-600"><span className="badge-outline">{r.difficulty}</span>{r.totalTimeMinutes && <span className="badge-outline flex items-center gap-1"><Clock3 className="h-3.5 w-3.5" /> {formatTime(r.totalTimeMinutes)}</span>}{r.servings && <span className="badge-outline">{r.servings} servings</span>}<button type="button" className="btn-secondary btn-sm" disabled={!isAuthenticated} onClick={async () => { if (accessToken) { await addFavorite(r.id, accessToken); setFeedback('Saved to your favorites.'); } }}>{isAuthenticated ? '♡ Save recipe' : 'Sign in to save'}</button></div>
+      <div className="mt-8 flex flex-wrap items-center gap-3 text-sm text-charcoal-600" data-reveal="fade"><span className="badge-outline">{r.difficulty}</span>{r.totalTimeMinutes && <span className="badge-outline flex items-center gap-1"><Clock3 className="h-3.5 w-3.5" /> {formatTime(r.totalTimeMinutes)}</span>}{r.servings && <span className="badge-outline">{r.servings} servings</span>}<button type="button" className="btn-primary" onClick={() => setCookOpen(true)}><ChefHat className="h-4 w-4" /> Start cooking</button><button type="button" className="btn-secondary btn-sm" disabled={!isAuthenticated} onClick={async () => { if (accessToken) { await addFavorite(r.id, accessToken); setFeedback('Saved to your favorites.'); } }}>{isAuthenticated ? '♡ Save recipe' : 'Sign in to save'}</button></div>
       <div className="mt-8 grid gap-10 lg:grid-cols-3">
-        <div className="rounded-2xl border border-charcoal-100 bg-white p-6">
+        <div className="rounded-2xl border border-charcoal-100 bg-white p-6" data-reveal="left">
           <h2 className="font-display text-xl">Ingredients</h2>
           <ul className="mt-3 space-y-2 text-sm">
             {r.ingredients?.map((i: any) => (
@@ -221,7 +238,7 @@ function RecipeDetailPage() {
             ))}
           </ul>
         </div>
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2" data-reveal="right">
           <h2 className="font-display text-xl">Instructions</h2>
           <ol className="mt-4 space-y-4">
             {r.instructions?.map((s: any) => (
@@ -241,6 +258,7 @@ function RecipeDetailPage() {
         {isAuthenticated ? <form className="mt-6 flex gap-2" onSubmit={async (event) => { event.preventDefault(); if (accessToken && comment.trim()) { await addComment(r.id, comment.trim(), accessToken); setComment(''); setFeedback('Your note was submitted for moderation.'); } }}><input className="input" value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Share a cooking note..." maxLength={2000} /><button type="submit" className="btn-primary shrink-0">Post</button></form> : <p className="mt-6 text-sm text-charcoal-500">Sign in to rate this recipe or share a cooking note.</p>}
         <div className="mt-8 space-y-4">{comments.data?.data?.map((item) => <div key={item.id} className="rounded-xl border border-charcoal-100 bg-white p-4"><p className="text-sm leading-6 text-charcoal-700">{item.content}</p><p className="mt-2 text-xs text-charcoal-400">{item.user.name}</p></div>)}</div>
       </section>
+      {cookOpen && <CookMode recipe={r} onClose={() => setCookOpen(false)} />}
     </article>
   );
 }
@@ -384,6 +402,7 @@ export function App() {
               <Route path="register" element={<RegisterPage />} />
               <Route path="forgot-password" element={<ForgotPasswordPage />} />
               <Route path="ai" element={<AIPage />} />
+              <Route path="profile" element={<ProfilePage />} />
               <Route path="admin" element={<AdminPage />} />
             </Routes>
           </Shell>
