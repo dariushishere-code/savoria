@@ -38,6 +38,7 @@ uploads
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
+api.md
 
 # Local tooling / agent state
 .claude
