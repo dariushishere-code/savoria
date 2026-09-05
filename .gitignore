@@ -1,7 +1,10 @@
 # Dependencies
 node_modules
 .pnpm-store
-
+.env.example
+.env.production.example
+.env.development.example
+.env
 # Builds
 dist
 build
